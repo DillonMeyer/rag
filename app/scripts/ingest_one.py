@@ -1,41 +1,51 @@
 from __future__ import annotations
-import random
+
 from sqlmodel import Session
+from sentence_transformers import SentenceTransformer
+
 from app.db import engine
 from app.models import Document, Chunk
 
-def random_vec(dim: int = 384) -> list[float]:
-    # deterministic-ish makes debugging easier
-    random.seed(42)
-    return [random.random() for _ in range(dim)]
+MODEL_NAME = "BAAI/bge-small-en-v1.5"
+
 
 def main():
     text = (
         "Tokyo has many districts. Akihabara is known for electronics and anime. "
         "Shinjuku is a major transit hub. This is a test document for ingestion."
     )
-
+    
+    sentences = [s.strip() for s in text.split(".") if s.strip()]
+    
+    model = SentenceTransformer(MODEL_NAME)
+    vectors = model.encode(
+        sentences,
+        normalize_embeddings=True,
+        batch_size=32,
+        show_progress_bar=False,
+    ).tolist()
+    
     with Session(engine) as session:
-        doc = Document(source="local:test", title="Test Doc")
+        doc = Document(source="local:test", title="Test Doc (BGE)")
         session.add(doc)
         session.commit()
         session.refresh(doc)
 
-        # dumb chunking: split by sentences
-        sentences = [s.strip() for s in text.split(".") if s.strip()]
-        for i, s in enumerate(sentences):
+        for i, (sentence, vec) in enumerate(zip(sentences, vectors)):
             chunk = Chunk(
                 document_id=doc.document_id,
                 chunk_index=i,
-                text=s,
+                text=sentence,
                 token_count=None,
-                embedding=random_vec(384),
+                embedding=vec,
                 embedding_model_version_id=1,
             )
             session.add(chunk)
 
         session.commit()
-        print(f"Inserted doc_id={doc.document_id}, chunks={len(sentences)}")
+
+    print(f"Inserted doc with BGE embeddings: chunks={len(sentences)}")
+
 
 if __name__ == "__main__":
     main()

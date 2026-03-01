@@ -30,3 +30,7 @@ htmlcov/
 
 # Misc
 *.sqlite3
+
+# local datasets
+data/
+*.pdf

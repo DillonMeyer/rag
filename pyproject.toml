@@ -8,6 +8,7 @@ dependencies = [
   "sqlmodel",
   "psycopg[binary]",
   "pgvector",
+  "pymupdf"
 ]
 
 [tool.uv]
