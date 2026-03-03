@@ -1,0 +1,28 @@
+question_text,gold_chunk_id
+What is domain adaptation in Retrieval-Augmented Generation?,267
+What benchmarks are used to evaluate RAG systems?,64
+How do RAG systems address hallucination and trustworthiness?,62
+How does multi-agent collaboration improve RAG systems?,316
+What is Agentic Retrieval-Augmented Generation?,391
+What datasets are commonly used to benchmark RAG systems?,64
+What evaluation metrics like Recall@k and MRR are used in RAG systems?,60
+What is the MultiHop-RAG benchmark and what problem does it address?,152
+What is the Structured Evidence Assessment (SEA) module in FAIR-RAG?,5
+How does FAIR-RAG use iterative refinement to improve faithfulness?,15
+How do multi-agent coordination patterns improve RAG systems?,56
+What is agent-orchestrated retrieval in RAG architectures?,49
+What is GFM-RAG and how does it perform multi-hop reasoning?,226
+What is Speculative RAG and how does drafting improve performance?,442
+What is cross-encoder reranking in RE-RAG?,51
+How does two-stage retrieval improve RAG accuracy?,367
+How does self-reflection improve multi-step reasoning?,367
+What does Recall@k measure in retrieval evaluation?,60
+What is Mean Reciprocal Rank (MRR)?,60
+What is agent-orchestrated retrieval?,49
+How does agent-driven planning differ from canonical RAG?,43
+How does Auto-RAG perform iterative retrieval?,329
+How does Auto-RAG adjust the number of iterations?,335
+What problem does MultiHop-RAG address?,151
+How are hallucination and factual consistency evaluated in RAG systems?,62
+How does MAIN-RAG filter retrieved documents?,398
+How does Speculative RAG affect latency compared to standard RAG?,440

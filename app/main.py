@@ -1,64 +1,90 @@
+import time
 from fastapi import FastAPI
-from sqlmodel import Session, SQLModel
-from sqlalchemy import text
+from sqlmodel import SQLModel, Session
+from app.llm_local import generate_answer_with_citations_local
+from app.schemas import Citation as CitationSchema
+
 from .db import engine
 from .embeddings import embed_query
+from .retrieval import retrieve_hits
 from .schemas import AskRequest, AskResponse, ChunkHit
-from .db import engine
+from . import models
 
-app = FastAPI(title="RAG (Observable)")
+app = FastAPI(title="RAG")
 
 @app.on_event("startup")
 def on_startup():
     SQLModel.metadata.create_all(engine)
 
-@app.get("/health")
-def health():
-    return {"ok": True}
-
-@app.get("/dbcheck")
-def dbcheck():
-    with engine.connect() as conn:
-        conn.execute(text("SELECT 1;"))
-        result = conn.execute(
-            text("SELECT extname FROM pg_extension WHERE extname='vector';")
-        ).fetchone()
-    return {"db_ok": True, "pgvector_enabled": bool(result)}
-
 @app.post("/ask", response_model=AskResponse)
 def ask(req: AskRequest):
-    qvec = embed_query(req.question)
-    qvec_str = "[" + ",".join(map(str, qvec)) + "]"
+    t0 = time.perf_counter()
 
-    sql = text("""
-        SELECT
-            c.chunk_id,
-            c.chunk_index,
-            c.text,
-            (c.embedding <-> CAST(:qvec AS vector)) AS distance,
-            d.document_id,
-            d.title,
-            d.source
-        FROM chunks c
-        JOIN documents d ON d.document_id = c.document_id
-        ORDER BY c.embedding <-> CAST(:qvec AS vector)
-        LIMIT :top_k;
-    """)
+    qvec = embed_query(req.question)
 
     with Session(engine) as session:
-        rows = session.execute(sql, {"qvec": qvec_str, "top_k": req.top_k}).all()
+        hit_rows = retrieve_hits(session, qvec=qvec, top_k=req.top_k, max_chunks_per_doc=2)
 
-    hits = [
-        ChunkHit(
-            chunk_id=r[0],
-            chunk_index=r[1],
-            text=r[2],
-            distance=float(r[3]),
-            document_id=r[4],
-            title=r[5],
-            source=r[6],
+        hits = [
+            ChunkHit(
+                chunk_id=h["chunk_id"],
+                chunk_index=h["chunk_index"],
+                text=h["text"],
+                distance=h["distance"],
+                document_id=h["document_id"],
+                title=h["title"],
+                source=h["source"],
+            )
+            for h in hit_rows
+        ]
+
+        answer: str | None = None
+        citations: list[CitationSchema] = []
+
+        if req.generate:
+            answer_text, cite_meta = generate_answer_with_citations_local(
+                question=req.question,
+                hits=hit_rows,
+                model=req.model or "llama3.2:latest"
+            )
+            answer = answer_text
+            citations = [
+                CitationSchema(
+                    n=c.n,
+                    chunk_id=c.chunk_id,
+                    document_id=c.document_id,
+                    title=c.title,
+                    source=c.source,
+                    chunk_index=c.chunk_index,
+                )
+                for c in cite_meta
+            ]
+
+        latency_ms = int((time.perf_counter() - t0) * 1000)
+
+        q = models.Query(question_text=req.question, embedding_model_version_id=1)
+        session.add(q)
+        session.flush()
+
+        rlog = models.Retrieval(
+            query_id=q.query_id,
+            top_k=req.top_k,
+            retrieval_latency_ms=latency_ms,
+            embedding_model_version_id=1,
         )
-        for r in rows
-    ]
+        session.add(rlog)
+        session.flush()
 
-    return AskResponse(question=req.question, hits=hits)
+        for rank, h in enumerate(hits, start=1):
+            session.add(
+                models.RetrievalResult(
+                    retrieval_id=rlog.retrieval_id,
+                    chunk_id=h.chunk_id,
+                    rank=rank,
+                    distance=h.distance,
+                )
+            )
+
+        session.commit()
+
+    return AskResponse(question=req.question, answer=answer, citations=citations, hits=hits)
