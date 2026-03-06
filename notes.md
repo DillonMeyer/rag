@@ -131,28 +131,11 @@ python -m app.scripts.load_eval_csv \
 to do
 update deps and bundle with docker for deployment - local llm, db build?, gold quetsions?, start ollama
 
-What to implement (practical)
 
-1) Update schemas
+    What’s slightly messy
+	1.	It includes a “References:” section that your system didn’t enforce.
+	2.	It cited [3] multiple times without always being precise.
+	3.	It listed [2] in references even though the answer didn’t explicitly cite it.
+	4.	It returned 5 citation objects even though only 3 were used in text.
 
-Add to AskResponse:
-	•	answer: str | None
-	•	citations: list[Citation] | None
-
-Where Citation includes:
-	•	ref: int (1..N)
-	•	chunk_id
-	•	document_id
-	•	title
-	•	source
-
-2) Implement ollama_generate(prompt, model, max_tokens, temperature)
-
-Use requests (simplest) or httpx.
-
-3) Wire it into /ask
-
-If req.generate:
-	•	build prompt from hits
-	•	call ollama
-	•	return answer + citations
+This is normal for small local models (3.2B Q4). They need stronger constraints.

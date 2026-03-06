@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Sequence
+from numpy import indices
 import requests
+import re
 
 
 @dataclass(frozen=True)
@@ -62,6 +64,8 @@ def generate_answer_with_citations_local(
         "If the Sources do not contain enough information, say so.\n"
         "When you state a claim, add inline citations like [1] or [2][4].\n"
         "Do not invent citations.\n"
+        "Do NOT output a References or Sources section.\n"
+        "Only use bracket citations like [1].\n"
     )
 
     prompt = (
@@ -80,4 +84,9 @@ def generate_answer_with_citations_local(
     data = resp.json()
 
     answer = (data.get("response") or "").strip()
+
+    indices = set(int(x) for x in re.findall(r"\[(\d+)\]", answer))
+
+    citations = [c for c in citations if c.n in indices]
+    
     return answer, citations

@@ -82,3 +82,19 @@ class EvalQuestion(SQLModel, table=True):
     gold_chunk_ids: Optional[str] = Field(default=None)
 
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+class Generation(SQLModel, table=True):
+    __tablename__ = "generations"
+
+    generation_id: Optional[int] = Field(default=None, primary_key=True)
+
+    query_id: int = Field(foreign_key="queries.query_id", index=True)
+
+    model_name: str
+
+    generation_latency_ms: int
+    answer_length_chars: int
+
+    citations_present: bool
+
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
