@@ -1,5 +1,6 @@
 import time
 import requests
+import re
 
 from fastapi import FastAPI
 from sqlmodel import SQLModel, Session
@@ -10,8 +11,9 @@ from app.schemas import Citation as CitationSchema
 from .db import engine
 from .embeddings import embed_query
 from .retrieval import retrieve_hits
-from .schemas import AskRequest, AskResponse, ChunkHit
+from .schemas import AskRequest, AskResponse, ChunkHit, HitPreview
 from . import models
+from sqlalchemy import text
 
 
 app = FastAPI(title="RAG")
@@ -24,29 +26,20 @@ def on_startup():
 
 @app.get("/health")
 def health():
-    # DB
     with Session(engine) as session:
-        session.exec("SELECT 1")
-
-    # ollama
-    requests.get("http://127.0.0.1:11434/api/tags")
-
-    return {
-        "status": "ok",
-        "db": "ok",
-        "ollama": "ok"
-    }
-
+        session.exec(text("SELECT 1"))
+    return {"ok": True}
 
 @app.post("/ask", response_model=AskResponse)
 def ask(req: AskRequest):
-    t0 = time.perf_counter()
+    request_start = time.perf_counter()
 
     qvec = embed_query(req.question)
 
     with Session(engine) as session:
-        
-        # retrieval from vector DB
+        # retrieval
+        retrieval_start = time.perf_counter()
+
         hit_rows = retrieve_hits(
             session,
             qvec=qvec,
@@ -67,14 +60,16 @@ def ask(req: AskRequest):
             for h in hit_rows
         ]
 
+        retrieval_latency_ms = int((time.perf_counter() - retrieval_start) * 1000)
+
         answer: str | None = None
         citations: list[CitationSchema] = []
 
         gen_latency_ms = None
         answer_length = None
         citations_present = None
-        
-        # generation with citations
+
+        # generation
         if req.generate:
             gen_start = time.perf_counter()
 
@@ -101,12 +96,8 @@ def ask(req: AskRequest):
                 )
                 for c in cite_meta
             ]
-            
-        # retrieval logging 
-        # logging after generation to capture end-to-end latency
-        # retrieval latency logged separately to analyze it independently of generation
-        latency_ms = int((time.perf_counter() - t0) * 1000)
 
+        # logging
         q = models.Query(
             question_text=req.question,
             embedding_model_version_id=1
@@ -117,7 +108,7 @@ def ask(req: AskRequest):
         rlog = models.Retrieval(
             query_id=q.query_id,
             top_k=req.top_k,
-            retrieval_latency_ms=latency_ms,
+            retrieval_latency_ms=retrieval_latency_ms,
             embedding_model_version_id=1,
         )
         session.add(rlog)
@@ -133,7 +124,6 @@ def ask(req: AskRequest):
                 )
             )
 
-        # generation logging
         if req.generate and answer is not None:
             session.add(
                 models.Generation(
@@ -147,9 +137,24 @@ def ask(req: AskRequest):
 
         session.commit()
 
+    response_hits = None
+    if req.include_hits:
+        response_hits = [
+            HitPreview(
+                chunk_id=h.chunk_id,
+                chunk_index=h.chunk_index,
+                distance=h.distance,
+                document_id=h.document_id,
+                title=h.title,
+                source=h.source,
+                preview=h.text[:220].replace("\n", " ").strip(),
+            )
+            for h in hits
+        ]
+
     return AskResponse(
         question=req.question,
         answer=answer,
         citations=citations,
-        hits=hits
+        hits=response_hits,
     )

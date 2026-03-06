@@ -1,7 +1,16 @@
 import os
 
-# fallback to a default database URL if not set in environment variables
 DATABASE_URL = os.environ.get(
     "DATABASE_URL",
-    "postgresql+psycopg://rag:rag@localhost:5432/rag"
+    "postgresql+psycopg://rag:rag@db:5432/rag"
+)
+
+OLLAMA_BASE_URL = os.environ.get(
+    "OLLAMA_BASE_URL",
+    "http://ollama:11434"
+)
+
+DEFAULT_MODEL = os.environ.get(
+    "DEFAULT_MODEL",
+    "llama3.2:latest"
 )

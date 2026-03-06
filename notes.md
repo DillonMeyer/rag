@@ -127,15 +127,3 @@ python -m app.scripts.load_eval_csv \
   --csv rag_core_v1.csv \
   --eval-set rag_core_v1
 ```
-
-to do
-update deps and bundle with docker for deployment - local llm, db build?, gold quetsions?, start ollama
-
-
-    What’s slightly messy
-	1.	It includes a “References:” section that your system didn’t enforce.
-	2.	It cited [3] multiple times without always being precise.
-	3.	It listed [2] in references even though the answer didn’t explicitly cite it.
-	4.	It returned 5 citation objects even though only 3 were used in text.
-
-This is normal for small local models (3.2B Q4). They need stronger constraints.

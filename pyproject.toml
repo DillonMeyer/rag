@@ -8,7 +8,9 @@ dependencies = [
   "sqlmodel",
   "psycopg[binary]",
   "pgvector",
-  "pymupdf"
+  "pymupdf",
+  "requests",
+  "sentence-transformers"
 ]
 
 [tool.uv]

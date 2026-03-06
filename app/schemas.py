@@ -11,6 +11,7 @@ class AskRequest(BaseModel):
     model: str = "llama3.2:latest"
     max_tokens: int = 256
     temperature: float = 0.2
+    include_hits: bool = False
 
 
 class ChunkHit(BaseModel):
@@ -31,9 +32,18 @@ class Citation(BaseModel):
     title: Optional[str] = None
     source: str
 
+class HitPreview(BaseModel):
+    chunk_id: int
+    chunk_index: int
+    distance: float
+    document_id: int
+    title: Optional[str] = None
+    source: str
+    preview: str
 
 class AskResponse(BaseModel):
     question: str
     hits: List[ChunkHit]
     answer: Optional[str] = None
     citations: List[Citation] = Field(default_factory=list)
+    hits: Optional[List[HitPreview]] = None

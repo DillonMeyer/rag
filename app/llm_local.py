@@ -2,10 +2,18 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Sequence
-from numpy import indices
 import requests
 import re
+from app.settings import OLLAMA_BASE_URL, DEFAULT_MODEL
 
+def extract_used_citation_numbers(answer: str) -> list[int]:
+    nums = re.findall(r"\[(\d+)\]", answer or "")
+    seen: list[int] = []
+    for n in nums:
+        i = int(n)
+        if i not in seen:
+            seen.append(i)
+    return seen
 
 @dataclass(frozen=True)
 class Citation:
@@ -48,23 +56,29 @@ def generate_answer_with_citations_local(
     question: str,
     hits: Sequence[dict],
     *,
-    model: str = "llama3.2",
-    ollama_url: str = "http://127.0.0.1:11434",
+    model: str = DEFAULT_MODEL,
+    ollama_url: str = OLLAMA_BASE_URL,
     timeout_s: int = 120,
 ) -> tuple[str, list[Citation]]:
     """
     Ollama local generation. Returns (answer, citations metadata).
     Answer should include inline citations like [1] [2].
     """
+
+    # if not hits:
+    #     return "I could not find relevant grounded sources for this question.", []
+
     context, citations = _build_context(hits)
 
     system = (
         "You are a precise assistant doing retrieval-augmented QA.\n"
         "You MUST only use the provided Sources.\n"
-        "If the Sources do not contain enough information, say so.\n"
+        "If the Sources do not contain enough information, say so briefly.\n"
+        "Answer in 2-4 sentences when possible.\n"
+        "Start with a direct definition or answer.\n"
         "When you state a claim, add inline citations like [1] or [2][4].\n"
         "Do not invent citations.\n"
-        "Do NOT output a References or Sources section.\n"
+        "Do NOT output a References section.\n"
         "Only use bracket citations like [1].\n"
     )
 
@@ -85,8 +99,7 @@ def generate_answer_with_citations_local(
 
     answer = (data.get("response") or "").strip()
 
-    indices = set(int(x) for x in re.findall(r"\[(\d+)\]", answer))
+    used_nums = extract_used_citation_numbers(answer)
+    filtered_citations = [c for c in citations if c.n in used_nums]
 
-    citations = [c for c in citations if c.n in indices]
-    
-    return answer, citations
+    return answer, filtered_citations
