@@ -7,11 +7,17 @@ from typing import Optional, List
 class AskRequest(BaseModel):
     question: str
     top_k: int = 5
-    generate: bool = False
+    generate: bool = True
     model: str = "llama3.2:latest"
     max_tokens: int = 256
     temperature: float = 0.2
+    include_citations: bool = False
     include_hits: bool = False
+
+class AskResponse(BaseModel):
+    answer: str | None = None
+    hits: list[HitPreview] | None = None
+    citations: list[Citation] | None = None
 
 
 class ChunkHit(BaseModel):
@@ -40,10 +46,3 @@ class HitPreview(BaseModel):
     title: Optional[str] = None
     source: str
     preview: str
-
-class AskResponse(BaseModel):
-    question: str
-    hits: List[ChunkHit]
-    answer: Optional[str] = None
-    citations: List[Citation] = Field(default_factory=list)
-    hits: Optional[List[HitPreview]] = None

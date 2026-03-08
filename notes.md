@@ -1,129 +1,190 @@
 # RAG Project — Dev Notes
 
-## pgvector — IVFFLAT indexing
-
-### Check extension
+### Start full stack
 ```bash
+docker compose up --build
+```
+
+### **Stop full stack**
+
+```
+docker compose down
+```
+
+### **Stop full stack and wipe DB**
+
+```
+docker compose down -v
+```
+
+---
+
+## **Health + API checks**
+
+### **Health check**
+
+```
+curl http://localhost:8000/health
+```
+
+### **Ask a question (default: answer only)**
+
+```
+curl -X POST localhost:8000/ask \
+  -H "Content-Type: application/json" \
+  -d '{"question":"What is agentic RAG?"}'
+```
+
+### **Ask with citations**
+
+```
+curl -X POST localhost:8000/ask \
+  -H "Content-Type: application/json" \
+  -d '{"question":"What is agentic RAG?","include_citations":true}'
+```
+
+### **Ask with hit previews**
+
+```
+curl -X POST localhost:8000/ask \
+  -H "Content-Type: application/json" \
+  -d '{"question":"What is agentic RAG?","include_hits":true}'
+```
+
+### **Ask with citations + hit previews**
+
+```
+curl -X POST localhost:8000/ask \
+  -H "Content-Type: application/json" \
+  -d '{"question":"What is agentic RAG?","include_citations":true,"include_hits":true}'
+```
+
+### **Swagger UI**
+
+- http://localhost:8000/docs
+
+---
+
+## **Ollama**
+
+### **Pull model into Ollama container**
+
+```
+docker exec -it rag-ollama ollama pull llama3.2
+```
+
+### **List models in Ollama container**
+
+```
+docker exec -it rag-ollama ollama list
+```
+
+---
+
+## **Ingestion**
+
+### **Run ingestion in API container**
+
+```
+docker exec -it rag-api python -m app.scripts.ingest_one
+```
+
+### **Current PDF source folder**
+
+```
+data/papers
+```
+
+---
+
+## **Evaluation**
+
+### **Run eval in API container**
+
+```
+docker exec -it rag-api python -m app.scripts.eval_run --eval-set rag_core_v1 --top-k 5
+```
+
+### **Verbose eval**
+
+```
+docker exec -it rag-api python -m app.scripts.eval_run --eval-set rag_core_v1 --top-k 5 --verbose
+```
+
+### **Current benchmark snapshot**
+
+- Eval set: rag_core_v1
+- Questions scored: 27
+- Recall@5: ~0.407
+- MRR: ~0.355
+
+---
+
+## **PostgreSQL / pgvector**
+
+### **Connect to DB**
+
+```
+psql "postgresql://rag:rag@localhost:5432/rag"
+```
+
+### **List tables**
+
+```
+psql "postgresql://rag:rag@localhost:5432/rag" -c "\dt"
+```
+
+### **Show documents**
+
+```
+psql "postgresql://rag:rag@localhost:5432/rag" -c "SELECT document_id, title FROM documents LIMIT 20;"
+```
+
+### **Clean DB**
+
+```
+psql "postgresql://rag:rag@localhost:5432/rag" -c "TRUNCATE chunks, documents RESTART IDENTITY CASCADE;"
+```
+
+### **Check pgvector extension**
+
+```
 psql "postgresql://rag:rag@localhost:5432/rag" -c "SELECT extname FROM pg_extension WHERE extname='vector';"
 ```
 
-### Create IVFFLAT index (cosine distance)
-```bash
+### **Create IVFFLAT index**
+
+```
 psql "postgresql://rag:rag@localhost:5432/rag" -c "CREATE INDEX IF NOT EXISTS idx_chunks_embedding
 ON chunks
 USING ivfflat (embedding vector_cosine_ops)
 WITH (lists = 100);"
 ```
 
-### After ingestion (recommended)
-```bash
+### **Analyze chunks after ingestion**
+
+```
 psql "postgresql://rag:rag@localhost:5432/rag" -c "ANALYZE chunks;"
 ```
 
-### Optional tuning (per session)
-Higher = better recall, slower query.
-```bash
+### **Optional ivfflat probes tuning**
+
+```
 psql "postgresql://rag:rag@localhost:5432/rag" -c "SET ivfflat.probes = 10;"
 ```
 
-### Rebuild index (only if needed)
-```bash
+### **Rebuild index if needed**
+
+```
 psql "postgresql://rag:rag@localhost:5432/rag" -c "REINDEX INDEX idx_chunks_embedding;"
 ```
 
-### Run evaluation
-```bash
-python -m app.scripts.eval_run \
-  --eval-set rag_core_v1 \
-  --top-k 5 \
-  --verbose
-```
-
-## API
-
-### Start API
-```bash
-uvicorn app.main:app --reload
-```
-
-### Test /ask
-```bash
-curl -X POST "http://127.0.0.1:8000/ask"   -H "Content-Type: application/json"   -d '{"question":"What is agentic RAG?","top_k":5}'
-```
-
-Swagger UI:
-- http://127.0.0.1:8000/docs
-
 ---
 
-## Docker
+## **Notes**
 
-List containers:
-```bash
-docker ps
-```
-
-Start:
-```bash
-docker compose up -d
-```
-
-Stop:
-```bash
-docker compose down
-```
-
-Wipe DB volume:
-```bash
-docker compose down -v
-```
-
----
-
-## PostgreSQL
-
-Connect:
-```bash
-psql "postgresql://rag:rag@localhost:5432/rag"
-```
-
-List tables:
-```bash
-psql "postgresql://rag:rag@localhost:5432/rag" -c "\dt"
-```
-
-Describe schema:
-```bash
-psql "postgresql://rag:rag@localhost:5432/rag" -c "\d documents"
-```
-
-Peek rows:
-```bash
-psql "postgresql://rag:rag@localhost:5432/rag" -c "SELECT document_id, title FROM documents LIMIT 5;"
-```
-
-Clean DB:
-```bash
-psql "postgresql://rag:rag@localhost:5432/rag" -c "TRUNCATE chunks, documents RESTART IDENTITY CASCADE;"
-```
-
----
-
-## Scripts
-
-Run ingestion:
-```bash
-python -m app.scripts.ingest_arxiv
-```
-
-Run eval:
-```bash
-python -m app.scripts.eval_run --eval-set toy_v1 --top-k 5 --verbose
-```
-
-Load eval questions from csv:
-```bash
-python -m app.scripts.load_eval_csv \
-  --csv rag_core_v1.csv \
-  --eval-set rag_core_v1
-```
+- Default /ask returns only answer
+- include_citations=true adds citation metadata
+- include_hits=true adds retrieved hit previews
+- Current eval metrics are tied to the current corpus snapshot
+- Broad definitional questions can retrieve bibliography-like chunks from research-paper corpora

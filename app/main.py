@@ -30,7 +30,7 @@ def health():
         session.exec(text("SELECT 1"))
     return {"ok": True}
 
-@app.post("/ask", response_model=AskResponse)
+@app.post("/ask", response_model=AskResponse, response_model_exclude_none=True)
 def ask(req: AskRequest):
     request_start = time.perf_counter()
 
@@ -138,6 +138,7 @@ def ask(req: AskRequest):
         session.commit()
 
     response_hits = None
+
     if req.include_hits:
         response_hits = [
             HitPreview(
@@ -152,9 +153,15 @@ def ask(req: AskRequest):
             for h in hits
         ]
 
-    return AskResponse(
-        question=req.question,
-        answer=answer,
-        citations=citations,
-        hits=response_hits,
-    )
+    if answer and not req.include_citations:
+        answer = re.sub(r"\s*\[\d+\]", "", answer).strip()
+    
+    response = {"answer": answer}
+
+    if req.include_citations:
+        response["citations"] = citations
+
+    if req.include_hits:
+        response["hits"] = response_hits
+
+    return AskResponse(**response)
