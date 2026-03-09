@@ -4,21 +4,17 @@ A containerized Retrieval-Augmented Generation (RAG) system for answering questi
 
 The system retrieves relevant document chunks using pgvector and generates answers using a local LLM served through Ollama.
 
+The project includes ingestion, vector retrieval, answer generation, logging, evaluation, and multi-container deployment.
+
+```bash
+Client → API → embed query (BGE-small) → retrieve chunks (pgvector) → generate answer (Ollama)
+```
+
+Each stage leaves a record.
+
 Responses include citations pointing to the retrieved sources.
 
-<br>
-
-Key technologies:
-
-- FastAPI
-- PostgreSQL + pgvector
-- Ollama (local LLM inference)
-- Docker
-
-<br>
-
-## Example Query
-<br>
+**Example Query**
 
 ```bash
 curl -X POST http://localhost:8000/ask \
@@ -26,10 +22,7 @@ curl -X POST http://localhost:8000/ask \
 -d '{"question":"What is agentic RAG?"}'
 ```
 
-<br>
-
-## Example Response
-<br>
+**Example Response**
 
 ```JSON
 {
@@ -37,9 +30,15 @@ curl -X POST http://localhost:8000/ask \
 }
 ```
 
-Optional debugging flags allow returning citations or retrieved chunks.
+*Optional debugging flags allow returning citations or retrieved chunks.*
 
-<br>
+**Key technologies:**
+
+- FastAPI
+- BGE-small
+- PostgreSQL + pgvector
+- Ollama (local LLM inference)
+- Docker
 
 ## Architecture
 
@@ -47,102 +46,83 @@ The system embeds incoming questions, retrieves relevant document chunks using p
 
 Query and retrieval metadata are logged to support evaluation and debugging.
 
-<br>
-
-### System Flow
+**System Flow**
 ![System Architecture](E2E_RAG.png)
 
-<br>
-
-### Database Schema
+**Database Schema**
 ![System Architecture](RAG_ERD.png)
 
-<br>
+### Tables
+- `documents`
+  - Metadata about each source document.
+- `chunks`
+  - Each document divided into chunks.
+  - Each chunk is embedded with BGE-small and stored with its vector representation.
+- `queries`
+  - Records each call to the /ask endpoint.
+  - Serves as the root event for retrieval and generation logging.
+- `retrievals`
+  - Records the retrieval step for a query.
+  - Stored separately because retrieval settings can vary.
+- `retrieval_results`
+  - Records which chunks were returned.
+  - Assists with inspecting and debugging retrieval.
+-  `generations`
+  - Records metadata about the LLM generation step.
 
 ## Retrieval Pipeline
 
 Documents are chunked into overlapping segments and embedded using the **BGE-small** embedding model.
 
-Embeddings are stored in **PostgreSQL with pgvector** and queried using cosine similarity.
+Embeddings are stored in **PostgreSQL** with **pgvector** and queried using cosine similarity.
 
 Retrieval is configured with:
 
 - IVFFLAT vector indexing
+  - Groups embeddings into clusters to reduce the number of vectors scanned during similarity search.
 - configurable top-k retrieval
 - chunk limits per document
+  - Ensures all the top_k results don’t come from a single document.
 
-This allows efficient semantic search over the document corpus while keeping the system simple and reproducible.
-
-<br>
+This allows efficient semantic search over the corpus.
 
 ## Retrieval Evaluation
 
 To measure retrieval quality, a small benchmark dataset was created.
 
-```
-Eval set: rag_core_v1
-Questions: 27
+**Questions**: 27
 
-Recall@5: 0.407
-MRR: 0.355
-```
+**Recall@5**: 0.407 *(whether the relevant chunk appears in the retrieved results)*
 
-Metrics include:
-
-- **Recall@k** – whether the relevant chunk appears in the retrieved results
-- **MRR (Mean Reciprocal Rank)** – how early the relevant result appears
-
-This provides a basic signal of retrieval quality and allows experimentation with indexing parameters.
-
-<br>
+**MRR**: 0.355 *(how early the relevant result appears)*
 
 ## Design Decisions
+pgvector was selected over a separate vector database to keep retrieval, metadata, and logging in one system.
 
-### PostgreSQL + pgvector
-Chosen for simplicity and strong ecosystem support. pgvector enables vector search without introducing a separate vector database.
+Ollama for local model serving to avoid external API dependencies.
 
-### Local LLM via Ollama
-Running the model locally avoids external API dependencies and keeps the system fully reproducible.
-
-### Retrieval logging
-Queries, retrieval results, and generation metadata are stored to support evaluation and debugging.
-
-<br>
+Dockerized services to make deployment reproducible.
 
 ## Challenges Encountered
-
-Several practical issues emerged during development:
 
 - retrieval frequently surfaced bibliography or reference sections
 - embedding similarity does not always correlate with answer relevance
 - citation filtering required parsing the model output
 - containerizing LLM services introduced resource management challenges
 
-These issues highlight common limitations in simple RAG pipelines.
-
-<br>
-
 ## Limitations
-
-Current limitations include:
 
 - semantic retrieval can surface bibliography-style chunks
 - evaluation dataset is small and tied to the current corpus snapshot
 - no reranking stage is implemented
 
-<br>
-
 ## Future Improvements
-
-Possible improvements include:
 
 - reranking model for improved retrieval quality
 - query rewriting
 - larger evaluation dataset
 - streaming responses
 - automated corpus ingestion
-
-<br>
 
 ## Local Setup
 
@@ -162,11 +142,4 @@ Ingest documents:
 
 ```bash
 docker exec -it rag-api python -m app.scripts.ingest_one
-```
-
-Run the API:
-```bash
-curl -X POST localhost:8000/ask \
--H "Content-Type: application/json" \
--d '{"question":"What is agentic RAG?"}'
 ```
