@@ -20,21 +20,11 @@ The system retrieves relevant document chunks using pgvector and generates groun
 
 ## Architecture
 
-```
-Client
-   ↓
-FastAPI /ask endpoint
-   ↓
-Query embedding (BGE-small)
-   ↓
-pgvector similarity search
-   ↓
-Top-k retrieved chunks
-   ↓
-LLM generation (Ollama / Llama3.2)
-   ↓
-Answer with citations
-```
+### End-to-End Data Flow
+![System Architecture](E2E_RAG.png)
+
+### ERD
+![System Architecture](RAG_ERD.png)
 
 <br>
 
