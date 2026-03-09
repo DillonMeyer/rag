@@ -32,5 +32,5 @@ htmlcov/
 *.sqlite3
 
 # local datasets
-data/
-*.pdf
+# data/
+# *.pdf

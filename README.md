@@ -6,31 +6,18 @@ The system retrieves relevant document chunks using pgvector and generates groun
 
 <br>
 
-## Features
+Local LLM inference with Ollama
 
-```
-• pgvector semantic retrieval
-• citation-grounded answers
-• evaluation harness (Recall@k / MRR)
-• containerized deployment
-• local LLM inference with Ollama
-```
+Containerized via Docker
 
-<br>
-
-## Architecture
-
-### End-to-End Data Flow
-![System Architecture](E2E_RAG.png)
-
-### ERD
-![System Architecture](RAG_ERD.png)
+Vector search using pgvector
 
 <br>
 
 ## Example Query
+<br>
 
-```
+```bash
 curl -X POST http://localhost:8000/ask \
 -H "Content-Type: application/json" \
 -d '{"question":"What is agentic RAG?"}'
@@ -39,14 +26,35 @@ curl -X POST http://localhost:8000/ask \
 <br>
 
 ## Example Response
+<br>
 
-```
+```bash
 {
   "answer": "Agentic RAG refers to a paradigm of retrieval-augmented generation systems that incorporate autonomous agents capable of dynamic decision-making and workflow optimization."
 }
 ```
 
 Optional debugging flags allow returning citations or retrieved chunks.
+
+<br>
+
+## Architecture
+
+The system embeds incoming questions, performs vector similarity search over
+chunked research papers stored in PostgreSQL with pgvector, and uses a local
+LLM to generate a grounded answer.
+
+Requests and retrieval results are logged for evaluation and debugging.
+
+<br>
+
+### End-to-End Data Flow
+![System Architecture](E2E_RAG.png)
+
+<br>
+
+### ERD
+![System Architecture](RAG_ERD.png)
 
 <br>
 
@@ -87,21 +95,6 @@ This provides a basic signal of retrieval quality and allows experimentation wit
 
 <br>
 
-## Tech Stack
-
-| Component | Technology |
-| --- | --- |
-| API | FastAPI |
-| Vector database | PostgreSQL + pgvector |
-| Embeddings | BGE-small |
-| LLM | Llama3.2 via Ollama |
-| Infrastructure | Docker |
-| Hosting | Northflank |
-
-The system is fully containerized to ensure reproducible environments and avoid dependency drift.
-
-<br>
-
 ## Engineering Decisions
 
 **PostgreSQL + pgvector**
@@ -115,6 +108,22 @@ Using Ollama allows running local models without external API dependencies while
 **Containerized stack**
 
 Docker ensures the system runs consistently across local development and cloud deployment.
+
+<br>
+
+## Key Design Decisions
+
+Local model inference (Ollama)
+Using a locally hosted LLM avoids API costs and keeps the system fully
+reproducible.
+
+pgvector instead of a dedicated vector database
+pgvector allows embeddings, metadata, and retrieval logging to live in the
+same PostgreSQL database, simplifying system architecture.
+
+Retrieval logging
+All queries, retrieval results, and generation metadata are stored to enable
+evaluation and debugging of retrieval quality.
 
 <br>
 
@@ -150,17 +159,3 @@ Possible improvements include:
 - larger evaluation dataset
 - streaming responses
 - automated corpus ingestion
-
-<br>
-
-## Deployment
-
-The system runs as a multi-container stack:
-
-```
-API container
-PostgreSQL + pgvector container
-Ollama model server
-```
-
-The stack can be deployed using Docker Compose and hosted on platforms such as Northflank.
