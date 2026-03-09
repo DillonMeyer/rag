@@ -2,15 +2,18 @@
 
 A containerized Retrieval-Augmented Generation (RAG) system for answering questions over research papers.
 
-The system retrieves relevant document chunks using pgvector and generates grounded answers using a local LLM served through Ollama. Answers include citation references to the retrieved sources.  
+The system retrieves relevant document chunks using pgvector and generates answers using a local LLM served through Ollama.
+
+Responses include citations pointing to the retrieved sources.
 
 <br>
 
-Local LLM inference with Ollama
+Key technologies:
 
-Containerized via Docker
-
-Vector search using pgvector
+- FastAPI
+- PostgreSQL + pgvector
+- Ollama (local LLM inference)
+- Docker
 
 <br>
 
@@ -28,7 +31,7 @@ curl -X POST http://localhost:8000/ask \
 ## Example Response
 <br>
 
-```bash
+```JSON
 {
   "answer": "Agentic RAG refers to a paradigm of retrieval-augmented generation systems that incorporate autonomous agents capable of dynamic decision-making and workflow optimization."
 }
@@ -40,20 +43,18 @@ Optional debugging flags allow returning citations or retrieved chunks.
 
 ## Architecture
 
-The system embeds incoming questions, performs vector similarity search over
-chunked research papers stored in PostgreSQL with pgvector, and uses a local
-LLM to generate a grounded answer.
+The system embeds incoming questions, retrieves relevant document chunks using pgvector, and generates answers with a local LLM.
 
-Requests and retrieval results are logged for evaluation and debugging.
+Query and retrieval metadata are logged to support evaluation and debugging.
 
 <br>
 
-### End-to-End Data Flow
+### System Flow
 ![System Architecture](E2E_RAG.png)
 
 <br>
 
-### ERD
+### Database Schema
 ![System Architecture](RAG_ERD.png)
 
 <br>
@@ -64,7 +65,7 @@ Documents are chunked into overlapping segments and embedded using the **BGE-sma
 
 Embeddings are stored in **PostgreSQL with pgvector** and queried using cosine similarity.
 
-To improve retrieval performance, the system uses:
+Retrieval is configured with:
 
 - IVFFLAT vector indexing
 - configurable top-k retrieval
@@ -74,7 +75,7 @@ This allows efficient semantic search over the document corpus while keeping the
 
 <br>
 
-## Evaluation
+## Retrieval Evaluation
 
 To measure retrieval quality, a small benchmark dataset was created.
 
@@ -95,35 +96,16 @@ This provides a basic signal of retrieval quality and allows experimentation wit
 
 <br>
 
-## Engineering Decisions
+## Design Decisions
 
-**PostgreSQL + pgvector**
+### PostgreSQL + pgvector
+Chosen for simplicity and strong ecosystem support. pgvector enables vector search without introducing a separate vector database.
 
-Chosen for simplicity and strong ecosystem support. Using pgvector allows vector search without introducing a separate vector database.
+### Local LLM via Ollama
+Running the model locally avoids external API dependencies and keeps the system fully reproducible.
 
-**Local LLM via Ollama**
-
-Using Ollama allows running local models without external API dependencies while keeping the deployment relatively simple.
-
-**Containerized stack**
-
-Docker ensures the system runs consistently across local development and cloud deployment.
-
-<br>
-
-## Key Design Decisions
-
-Local model inference (Ollama)
-Using a locally hosted LLM avoids API costs and keeps the system fully
-reproducible.
-
-pgvector instead of a dedicated vector database
-pgvector allows embeddings, metadata, and retrieval logging to live in the
-same PostgreSQL database, simplifying system architecture.
-
-Retrieval logging
-All queries, retrieval results, and generation metadata are stored to enable
-evaluation and debugging of retrieval quality.
+### Retrieval logging
+Queries, retrieval results, and generation metadata are stored to support evaluation and debugging.
 
 <br>
 
@@ -159,3 +141,32 @@ Possible improvements include:
 - larger evaluation dataset
 - streaming responses
 - automated corpus ingestion
+
+<br>
+
+## Local Setup
+
+Start the stack:
+
+```bash
+docker compose up --build
+```
+
+Pull the model:
+
+```bash
+docker exec -it rag-ollama ollama pull llama3.2
+```
+
+Ingest documents:
+
+```bash
+docker exec -it rag-api python -m app.scripts.ingest_one
+```
+
+Run the API:
+```bash
+curl -X POST localhost:8000/ask \
+-H "Content-Type: application/json" \
+-d '{"question":"What is agentic RAG?"}'
+```
